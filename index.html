@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="description" content="사진을 올리면 AI가 공감형 Threads 글을 짧게·중간·길게 써주는 앱">
 </head>
 <body>
 <title>사진 한 장, 스레드 한 편</title>
@@ -494,7 +498,7 @@ let sample = null, aiReady = false, aiImages = true;
 const samplePromise = (async () => {
   try { sample = await window.claude?.use?.("sample"); } catch (e) { sample = null; }
   aiReady = true;
-  if (!sample) { banner("<b>AI를 쓸 수 없는 화면이에요.</b> claude.ai에 로그인한 상태에서 이 링크를 열어주세요."); }
+  if (!sample) { banner('<b>이 주소에서는 AI 글쓰기가 동작하지 않아요.</b><br>AI 기능은 Claude 안에서만 열려요. 아래 버튼을 눌러 Claude에서 열어주세요. (claude.ai 로그인 필요)<br><a class="btn primary" style="margin-top:10px;width:100%;text-decoration:none" href="https://claude.ai/artifact/FTyenxc4iWyRYK7mcPH9GF" target="_blank" rel="noopener">Claude에서 열기</a>'); }
   else {
     try { const caps = await sample.limits(); if (!caps.images) { aiImages = false; banner("<b>이 화면에서는 사진을 AI에 보낼 수 없어요.</b> Claude 앱이나 최신 브라우저에서 열어주세요."); } else state.maxImg = Math.min(MAX_IMG, caps.images.maxCount || MAX_IMG); } catch (e) {}
   }
