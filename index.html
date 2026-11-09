@@ -33,6 +33,12 @@ html{font-size:16px;-webkit-text-size-adjust:100%}
 html.big{font-size:19.5px}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+.vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;opacity:0}
+label.btn{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+label.btn:active{background:var(--accent-soft)}
+.vh:focus-visible+label.btn{outline:3px solid var(--accent);outline-offset:2px}
+.pick-row.busy label.btn{opacity:.5;pointer-events:none}
+.prep{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:700;font-size:.85rem}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:1rem;line-height:1.55;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:0 calc(110px + env(safe-area-inset-bottom,0px))}
@@ -213,15 +219,14 @@ textarea.txt:not([readonly]){border-color:var(--accent);background:var(--surface
   <section class="sec" aria-labelledby="h-img">
     <div class="sec-h"><h2 id="h-img"><span class="step">1</span>사진 올리기</h2><span class="hint" id="img-count">0 / 4장</span></div>
     <div class="drop" id="drop">
-      <div class="pick-row">
-        <button class="btn" id="btn-gallery"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>갤러리</button>
-        <button class="btn" id="btn-camera"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>카메라</button>
+      <div class="pick-row" id="pick-row">
+        <div><input type="file" id="in-gallery" class="vh" accept="image/*" multiple><label class="btn" for="in-gallery" style="width:100%"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>갤러리</label></div>
+        <div><input type="file" id="in-camera" class="vh" accept="image/*" capture="environment"><label class="btn" for="in-camera" style="width:100%"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>카메라</label></div>
       </div>
+      <div class="prep" id="prep" hidden role="status"><span class="spin sm" aria-hidden="true"></span><span id="prep-msg">사진 준비 중…</span></div>
       <div class="thumbs" id="thumbs"></div>
       <div class="drop-meta"><span>끌어다 놓기 · 붙여넣기(Ctrl+V)도 돼요</span><span>최대 4장</span></div>
     </div>
-    <input type="file" id="in-gallery" accept="image/*" multiple hidden>
-    <input type="file" id="in-camera" accept="image/*" capture="environment" hidden>
   </section>
 
   <section class="sec" aria-labelledby="h-sit">
@@ -393,10 +398,10 @@ optSummary();
 $("#memo").addEventListener("input", e => state.opt.memo = e.target.value.trim());
 
 /* ---------- 이미지 입력 ---------- */
-$("#btn-gallery").onclick = () => $("#in-gallery").click();
-$("#btn-camera").onclick = () => $("#in-camera").click();
-$("#in-gallery").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
-$("#in-camera").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+for (const id of ["#in-gallery", "#in-camera"]) {
+  const inp = $(id);
+  inp.addEventListener("change", () => { const files = [...(inp.files || [])]; addFiles(files).finally(() => { try { inp.value = ""; } catch (e) {} }); });
+}
 const drop = $("#drop");
 ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
@@ -409,36 +414,67 @@ document.addEventListener("paste", e => {
 });
 
 function loadImage(file) {
-  return new Promise((res, rej) => { const url = URL.createObjectURL(file); const img = new Image(); img.onload = () => res({ img, url }); img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode")); }; img.src = url; });
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => res({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode")); };
+    img.src = url;
+  });
 }
-function drawTo(img, maxEdge) {
-  const w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, maxEdge / Math.max(w, h));
-  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
-  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); return c;
-}
-const toBlob = (c, q) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("blob")), "image/jpeg", q));
-function thumbCanvas(img, size) {
-  const c = document.createElement("canvas"); c.width = c.height = size; const g = c.getContext("2d");
-  const w = img.naturalWidth, h = img.naturalHeight, m = Math.min(w, h);
-  g.drawImage(img, (w - m) / 2, (h - m) / 2, m, m, 0, 0, size, size); return c;
-}
-async function addFiles(list) {
-  if (!list || !list.length) return;
-  const files = [...list].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(f.name || ""));
-  if (!files.length) { toast("사진 파일만 올릴 수 있어요"); return; }
-  const room = state.maxImg - state.images.length;
-  if (room <= 0) { toast(`사진은 최대 ${state.maxImg}장까지예요`); return; }
-  if (files.length > room) toast(`최대 ${state.maxImg}장까지라 ${room}장만 추가했어요`);
-  for (const f of files.slice(0, room)) {
-    try {
-      const { img, url } = await loadImage(f);
-      const blob = await toBlob(drawTo(img, LONG_EDGE), 0.85);
-      const thumb = thumbCanvas(img, 200).toDataURL("image/jpeg", 0.72);
-      URL.revokeObjectURL(url);
-      state.images.push({ blob, url: URL.createObjectURL(blob), thumb });
-    } catch (e) { toast("이 사진은 열 수 없어요. JPG·PNG로 다시 시도해 주세요"); }
+async function decodeAny(file) {
+  try { const { img, url } = await loadImage(file); URL.revokeObjectURL(url); return { src: img, w: img.naturalWidth, h: img.naturalHeight }; }
+  catch (e) {
+    if (window.createImageBitmap) { const bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); return { src: bmp, w: bmp.width, h: bmp.height }; }
+    throw e;
   }
-  renderThumbs();
+}
+function drawTo(d, maxEdge) {
+  const s = Math.min(1, maxEdge / Math.max(d.w, d.h));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(d.w * s)); c.height = Math.max(1, Math.round(d.h * s));
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(d.src, 0, 0, c.width, c.height); return c;
+}
+function toBlob(c, q) {
+  return new Promise(res => {
+    const viaURL = () => res(dataURLtoBlob(c.toDataURL("image/jpeg", q)));
+    try { c.toBlob(b => b ? res(b) : viaURL(), "image/jpeg", q); } catch (e) { viaURL(); }
+  });
+}
+function thumbCanvas(d, size) {
+  const c = document.createElement("canvas"); c.width = c.height = size; const g = c.getContext("2d");
+  const m = Math.min(d.w, d.h); g.drawImage(d.src, (d.w - m) / 2, (d.h - m) / 2, m, m, 0, 0, size, size); return c;
+}
+const isHeic = f => /heic|heif/i.test(f.type || "") || /\.(heic|heif)$/i.test(f.name || "");
+const looksImage = f => !/^(video|audio|text)\//.test(f.type || "") && !/pdf|zip|msword|sheet|presentation/.test(f.type || "");
+let preparing = false;
+async function addFiles(list) {
+  const files = [...(list || [])].filter(looksImage);
+  if (!list || !list.length) return;
+  if (!files.length) { toast("사진 파일만 올릴 수 있어요"); return; }
+  if (preparing) { toast("사진을 준비하고 있어요. 잠시만요"); return; }
+  if (state.images.length >= state.maxImg) { toast(`사진은 최대 ${state.maxImg}장까지예요`); return; }
+  preparing = true; $("#pick-row").classList.add("busy"); $("#prep").hidden = false;
+  let added = 0, heic = 0, failed = 0, skipped = 0;
+  try {
+    for (let i = 0; i < files.length; i++) {
+      if (state.images.length >= state.maxImg) { skipped = files.length - i; break; }
+      const f = files[i];
+      $("#prep-msg").textContent = files.length > 1 ? `사진 준비 중… (${i + 1}/${files.length})` : "사진 준비 중…";
+      try {
+        const d = await decodeAny(f);
+        if (!d.w || !d.h) throw new Error("size");
+        const blob = await toBlob(drawTo(d, LONG_EDGE), 0.85);
+        if (!blob) throw new Error("blob");
+        const thumb = thumbCanvas(d, 200).toDataURL("image/jpeg", 0.72);
+        if (d.src.close) d.src.close();
+        state.images.push({ blob, url: URL.createObjectURL(blob), thumb }); added++;
+        renderThumbs();
+      } catch (e) { if (isHeic(f)) heic++; else failed++; }
+    }
+  } finally { preparing = false; $("#pick-row").classList.remove("busy"); $("#prep").hidden = true; renderThumbs(); }
+  if (heic) toast("HEIC 사진은 이 브라우저가 열지 못해요. 카메라 설정을 'JPG(호환성 우선)'로 바꾸거나, 사진을 스크린샷으로 찍어 올려주세요");
+  else if (failed) toast(`사진 ${failed}장을 열지 못했어요. 다른 사진으로 시도해 주세요`);
+  else if (skipped) toast(`최대 ${state.maxImg}장까지라 ${added}장만 추가했어요`);
+  else if (added) toast(`사진 ${added}장을 올렸어요`);
 }
 function renderThumbs() {
   const host = $("#thumbs"); host.innerHTML = "";
