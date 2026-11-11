@@ -3,7 +3,7 @@
 사진을 올리면 AI가 사진을 분석해서, 사람들이 공감할 Threads(스레드) 글을 **짧게 / 중간 / 길게** 3가지 버전으로 써주는 모바일 우선 웹앱입니다.
 
 ## 사용하기
-- 웹 주소(Vercel): 홈 화면 아이콘용 주소입니다. AI 기능은 claude.ai 안에서만 동작하므로, 이 주소에서는 "Claude에서 열기" 버튼으로 이동합니다.
+- 웹 주소(GitHub Pages): https://myungkook96.github.io/Photo-Upload-Thread/ — 홈 화면 아이콘용 주소입니다. AI 기능은 claude.ai 안에서만 동작하므로, 이 주소에서는 "Claude에서 열기" 버튼으로 이동합니다.
 - 실행 링크(Claude 아티팩트): https://claude.ai/artifact/FTyenxc4iWyRYK7mcPH9GF
 - claude.ai에 로그인한 상태에서 열어야 AI 기능이 동작합니다.
 
